@@ -1,0 +1,840 @@
+MODULE Module1
+    VAR num Palets_1:=0;!Emmagatzema quantitat demandada Màquina 1
+    VAR num Palets_2:=0;!Emmagatzema quantitat demandada Màquina 2
+    VAR num Palets_3:=0;!Emmagatzema quantitat demandada Màquina 3
+    VAR num Prioritat_1:=0;!Emmagatzema prioritat Màquina 1
+    VAR num Prioritat_2:=0;!Emmagatzema prioritat demandada Màquina 2
+    VAR num Prioritat_3:=0;!Emmagatzema prioritat demandada Màquina 3
+    VAR num rand:=0;!Emmagatzema el numero random generat per saber el mosaci
+    VAR num conta_M1:=0;!Emmagatzema el nombre de peces posades en la Màquina 1
+    VAR num conta_M2:=0;!Emmagatzema el nombre de peces posades en la Màquina 2
+    VAR num conta_M3:=0;!Emmagatzema el nombre de peces posades en la Màquina 3
+    VAR num conta:=0;!Conta el numero global de peces posades
+    VAR num total:=0;!Numero total de peces que ens demanen
+    VAR num conta_nivell:=0.0;!Serveix per definir quants pisos farem en cada palet que ens arriba
+    VAR num offsetx:=0;!offset per saber on posicionar-nos
+    VAR num offsety:=0;!offset per saber on posicionar-nos
+    VAR num offsetz:=0;!offset per saber on posicionar-nos
+    VAR robtarget peça;!Variable que utilitzem
+    VAR intnum Detectar_Palet;!Variable que connectem al trap del sensor que detecta els palets
+    VAR intnum Transfer;!Variable que connectem al trap del Motor del Transfer
+    VAR BOOL start:=false;!Variable per saber si el palet esta en posició per despaletitzar
+    VAR BOOL seguir:=false;!Variable per saber si el Motor transfer està activat o no
+    VAR num a:=0;
+    VAR num b:=0;
+    VAR num c:=0;
+    TASK PERS wobjdata Palet:=[FALSE,TRUE,"",[[464.445,-24.003,465],[1,0,0,0]],[[0,0,0],[1,0,0,0]]];
+    CONST robtarget Centre_Palet:=[[-19.999711662,19.999778963,-0.000341795],[0.001406282,0,-0.999999011,0],[-1,-1,-1,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];
+    CONST robtarget HOME:=[[535.951223274,0,657.179885683],[0.5,0,0.866025404,0],[0,0,0,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];
+    CONST robtarget Seguretat1:=[[444.445320116,-4.00322112,492.492182713],[0.001406241,0,-0.999999011,0],[-1,-1,-1,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];
+    CONST robtarget Seguretat:=[[444.445320116,-4.00322112,492.492182713],[0.001406241,0,-0.999999011,0],[-1,-1,-1,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];
+    CONST robtarget SeguretatM1:=[[-1.798921932,-477.762109626,478.322702723],[0.011746674,0.697023968,0.716846997,-0.012246945],[-2,-1,-1,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];
+    CONST robtarget SeguretatM2:=[[-477.765492806,-40,478.322697345],[0.000321992,-0.999729763,-0.015887997,0.016966676],[-3,-1,-1,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];
+    CONST robtarget SeguretatM3:=[[-5.863126523,477.729515498,478.322697345],[0.012152353,-0.722413169,0.691253384,0.011844496],[1,-1,-1,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];
+    CONST robtarget CentreM1:=[[-201.798921934,-77.762106189,20],[0.011746669,0.697023976,0.716846989,-0.012246939],[-2,-1,-1,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];
+    CONST robtarget CentreM2:=[[-127.765503443,160,20],[0.000321993,-0.999729764,-0.015887955,0.016966676],[-3,-1,-1,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];
+    CONST robtarget CentreM3:=[[194.1368839,77.729499668,20],[0.012152349,-0.722413148,0.691253406,0.011844499],[1,-1,-1,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]];
+    VAR num reg6:=0;
+    LOCAL VAR num nSeed:=320;
+    LOCAL VAR num nSeed_age:=150;
+
+
+    PROC main()
+        MoveJ HOME,v500,fine,PUNT_INTERMIG;
+        setdo treurepal, 0;
+        SetDO entrada_palet,0;
+        SetDO entrada_palet2,0;
+        SetDO entrada_palet3,0;
+        SetDO entrada_palet4,0;
+        IDelete Detectar_Palet;
+        IDelete Transfer;
+
+        CONNECT Detectar_Palet WITH detectar;                                                           !Connectem les dos funcions traps als sensors
+        ISignalDI Sensor_Palet,1,Detectar_Palet;
+
+        CONNECT Transfer WITH detectar2;
+        ISignalDO Motor_Transfer,1,Transfer;
+
+        
+
+        TPReadNum Palets_1,"Quanta materia necesita la màquina 1? ";                                    !Demanem la materia de la Màquina 1
+        TPReadNum Prioritat_1,"Quina prioritat té la màquina 1? ";                                      !Demanem prioritat de la Màquina 1
+        IF Prioritat_1>3 or Prioritat_1=0 THEN                                                          !Comprovem que s'hagui escrit un valor correcte de prioritat
+            TPWrite "Error, el numero no pot ser més gran que 3 o igual a 0";
+            TPReadNum Prioritat_1,"Quina prioritat té la màquina 1? ";
+        ENDIF
+
+        TPReadNum Palets_2,"Quanta materia necesita la màquina 2? ";                                    !Demanem la materia de la Màquina 2
+        TPReadNum Prioritat_2,"Quina prioritat té la màquina 2? ";                                      !Demanem prioritat de la Màquina 2
+        IF Prioritat_2>3 or Prioritat_2=0 or Prioritat_2=Prioritat_1 THEN                               !Comprovem que s'hagui escrit un valor correcte de prioritat i que no es repeteixin
+            TPWrite "Error, el numero no pot ser més gran que 3, igual a 0 o al de la Maquina 1";
+            TPReadNum Prioritat_2,"Quina prioritat té a la màquina 2? ";
+        ENDIF
+
+        TPReadNum Palets_3,"Quanta materia necesita la màquina 3? ";                                    !Demanem la materia de la Màquina 3
+        TPReadNum Prioritat_3,"Quina prioritat té  la màquina 3? ";                                     !Demanem prioritat de la Màquina 3
+        IF Prioritat_3>3 or Prioritat_3=0 or Prioritat_3=Prioritat_2 or Prioritat_3=Prioritat_1 THEN    !Comprovem que s'hagui escrit un valor correcte de prioritat i que no es repeteixin
+            TPWrite "Error, el numero no pot ser més gran a 3, igual a 0 o al de la Maquina 1 i 2";
+            TPReadNum Prioritat_3,"Quina prioritat té  la màquina 3? ";
+        ENDIF
+
+        total:=Palets_1+Palets_2+Palets_3;
+
+        Continuar;
+        TriaPalet;
+    ENDPROC
+
+    
+    
+    
+    
+    PROC Triapalet()    !Crida la funcio aleatori i depenent del numero que retorni sabrem quin palet arriba i per tant escollim a quina funcio anem per despaletitzar
+
+         
+        IF rand<=0.25 THEN
+            Mosaic1;
+        ENDIF
+        IF rand>0.25 and rand<=0.50 THEN
+            Mosaic2;
+        ENDIF
+        IF rand>0.50 and rand<=0.75 THEN
+            Mosaic3;
+        ENDIF
+        IF rand>0.75 and rand<=1 THEN
+            Mosaic4;
+        ENDIF
+!           Mosaic1;
+    ENDPROC
+
+
+
+
+
+
+    PROC Mosaic1()
+        a:=0;
+        b:=0;
+        seguir:=FALSE;
+
+        IF Prioritat_3=1 THEN                               !Comprova si la peça que no esta en el mosaic te prioritat respecte les altres, si es així entra a la funció continuar i esperem a que el palet s'envaigi i entri un altre
+            Continuar;
+
+            IF seguir=TRUE THEN                             !Cridem Triapalet el qual detectar un nou palet
+                Triapalet;
+            ENDIF
+        ENDIF
+
+        IF Prioritat_1<Prioritat_2 THEN                     !Comprovem si la Màquina 1 té prioritat
+            conta_nivell:=(1+Palets_1-conta_M1)/2.0;        !Calculem quants pisos necessitarem respecte el palet
+            IF conta_nivell>3 THEN
+                conta_nivell:=3;                            !Si per algun casual és més de 3 li diem que s'iguali a 3, ja que el palet només té tres pisos
+            ENDIF
+
+            FOR i from 1 TO conta_nivell DO                 !Creem 2 bucles un pels pisos i el segon per el numero de repeticions que farem per cada pis
+                offsetx:=5;
+                FOR i from 1 TO 2 DO
+                    a:=a+1;
+                    IF NOT (conta_M1=Palets_1) THEN         !Comprovem si s'han agafat totes les peces, ja que si en un mateix pis només es queda 1 per agafar ens saltem la crida de les funcions i no ens passem 
+                        AgafarPeça1;
+                        AnarM1;
+                    ENDIF
+                    offsetx:=15;                            !Aquest offset serveix per quan agafem la segona peça    
+                ENDFOR
+                offsetz:=offsetz+20;
+                offsety:=0;
+            ENDFOR
+
+            offsetz:=0;
+
+            IF NOT (conta_M1=Palets_1) THEN                 !Si no hem acabat totes les peces de la màquina 1 del mosaic 1 en comptes de seguir amb ell, encendrem el transfer i espererem a que arribi un que tingui peces de la Màquina 1
+                Continuar;
+                IF seguir=TRUE THEN
+                    Triapalet;
+                ENDIF
+            ENDIF
+
+            IF Prioritat_3<Prioritat_2 THEN                 !Comprovem si la Màquina 3 té prioritat respecta la Màquina 2 i si es aixi encenem transfer, ens desfem del palet i esperem a que arribi un que contingui les peces que busquem
+                Continuar;
+                IF seguir=TRUE THEN
+                    Triapalet;
+                ENDIF
+
+            ELSE
+                conta_nivell:=(1+Palets_2-conta_M2)/2.0;    !Si la Maquina 2 té prioritat respecte 3, llavors primer calculem quants pisos necessitem 
+                IF conta_nivell>3 THEN                      !Si és més gran que tres tornem a igualar
+                    conta_nivell:=3;
+                ENDIF
+
+                FOR i from 1 TO conta_nivell DO             !2 bucles, per els nivells i un altre per les repeticions per pisos
+                    offsety:=-10;                           !offsets inicials per saber on esta la primera peça
+                    offsetx:=-10;
+                    FOR i from 1 TO 2 DO
+                        b:=b+1;
+                        IF (b>2)THEN
+                            b:=6;
+                        ENDIF
+                        IF NOT (conta_M2=Palets_2) THEN     !Comprovem si s'han agafat totes les peces, ja que si en un mateix pis només es queda 1 per agafar ens saltem la crida de les funcions i no ens passem
+
+                            AgafarPeça2;
+                            AnarM2;
+
+                        ENDIF
+                        offsety:=10;                        !offset per agafar la segona peça
+                    ENDFOR
+
+                    offsetz:=offsetz+20;
+
+                ENDFOR
+                offsety:=0;                                 !resetejem els offsets per si hi hagues algun error
+                offsetx:=0;
+                offsetz:=0;
+
+            ENDIF
+        ENDIF
+
+        IF Prioritat_2<Prioritat_1 THEN                     !Si la Màquina 2 té prioritat respecte la màquina 1 fem la inversa de l'explicat en les linies anterior
+            conta_nivell:=(1+Palets_2-conta_M2)/2.0;
+            IF conta_nivell>3 THEN
+                conta_nivell:=3;
+            ENDIF
+            FOR i from 1 TO conta_nivell DO
+                offsety:=-10;
+                offsetx:=-10;
+                FOR i from 1 TO 2 DO
+                    b:=b+1;
+                    IF (b>2)THEN
+                            b:=6;
+                    ENDIF
+                    IF NOT (conta_M2=Palets_2) then
+                        Agafarpeça2;
+                        AnarM2;
+                    ENDIF
+                    offsety:=10;
+                ENDFOR
+                offsetz:=offsetz+20;
+
+
+            ENDFOR
+            offsety:=0;
+            offsetx:=0;
+            offsetz:=0;
+
+            IF Prioritat_3<Prioritat_1 THEN                 !Comprovem si la Màquina 3 té prioritat respecta la Màquina 2 i si es aixi encenem transfer, ens desfem del palet i esperem a que arribi un que contingui les peces que busquem
+                Continuar;
+                IF seguir=TRUE THEN
+                    Triapalet;
+                ENDIF
+
+            ELSE
+                conta_nivell:=(1+Palets_1-conta_M1)/2.0;
+                IF conta_nivell>3 THEN
+                    conta_nivell:=3;
+                ENDIF
+                FOR i from 1 TO conta_nivell DO
+                    offsetx:=5;
+                    FOR i from 1 TO 2 DO
+                        a:=a+1;
+                        IF NOT (conta_M1=Palets_1) then
+                            AgafarPeça1;
+                            AnarM1;
+                        ENDIF
+                        offsetx:=15;
+                    ENDFOR
+                    offsetz:=offsetz+20;
+
+                ENDFOR
+                offsetx:=0;
+                offsety:=0;
+                offsetz:=0;
+
+            ENDIF
+        ENDIF
+        Continuar;                                          !Hem acabat amb el palet que té el Mosaic 1, per tant esperem a que arribi un nou palet 
+        IF seguir=TRUE THEN
+            Triapalet;
+        ENDIF
+
+    ENDPROC
+
+
+
+
+
+    PROC Mosaic2()
+        a:=0;
+        b:=0;
+        seguir:=FALSE;
+        IF (Prioritat_1<Prioritat_2) THEN                  !Comprova si la peça que no esta en el mosaic te prioritat respecte les altres, si es així entra a la funció continuar i esperem a que el palet s'envaigi i entri un altre
+            IF NOT (conta_M1=Palets_1) then
+                Continuar;
+                IF seguir=TRUE THEN
+                    Triapalet;
+                ENDIF
+            ENDIF
+        ENDIF
+
+
+        IF (Prioritat_3<Prioritat_2) THEN                  !Comprova si la peça que no esta en el mosaic te prioritat respecte les altres, si es així entra a la funció continuar i esperem a que el palet s'envaigi i entri un altre
+            IF NOT (conta_M3=Palets_3) THEN
+                Continuar;
+                IF seguir=TRUE THEN
+                    Triapalet;
+                ENDIF
+            ENDIF
+        ENDIF
+
+        conta_nivell:=(4+Palets_2-conta_M2)/4.0;            !Contem quants pisos necessitem
+        IF conta_nivell>3 THEN
+            conta_nivell:=3;
+        ENDIF
+        FOR i from 1 TO conta_nivell DO                     !3 bucles, un per pisos i 2 per les repeticions per pisos
+            offsety:=-10;                                   !offsets inicials per la primera peça
+            offsetx:=-10;
+            FOR i from 1 TO 2 DO
+                b:=b+1;
+                IF NOT (conta_M2=Palets_2) THEN             !Comprovem si s'han agafat totes les peces, ja que si en un mateix pis només es queda 1 per agafar ens saltem la crida de les funcions i no ens passem 
+                    Agafarpeça2;
+                    AnarM2;
+                    offsety:=10;
+                ENDIF
+            ENDFOR
+            offsety:=-10;                                   !offsets inicials per la primera peça
+            offsetx:=10;
+            FOR i from 1 TO 2 DO
+                b:=b+1;
+                IF NOT (conta_M2=Palets_2) THEN             !Comprovem si s'han agafat totes les peces, ja que si en un mateix pis només es queda 1 per agafar ens saltem la crida de les funcions i no ens passem
+                    Agafarpeça2;
+                    AnarM2;
+                    offsety:=10;
+                ENDIF
+            ENDFOR
+            offsetz:=offsetz+20;
+
+
+        ENDFOR
+
+        offsetz:=0;
+
+        Continuar;                                          !Hem acabat amb el palet que té el Mosaic 2, per tant esperem a que arribi un nou palet 
+        IF seguir=TRUE THEN
+            Triapalet;
+        ENDIF
+
+
+    ENDPROC
+
+
+
+
+
+
+    PROC Mosaic3()
+        a:=2;
+        c:=0;
+        seguir:=FALSE;
+        IF Prioritat_2=1 THEN                               !Comprova si la peça que no esta en el mosaic te prioritat respecte les altres, si es així entra a la funció continuar i esperem a que el palet s'envaigi i entri un altre
+            IF NOT (conta_M2=Palets_2) THEN
+                Continuar;
+                IF seguir=TRUE THEN
+                    Triapalet;
+                ENDIF
+            ENDIF
+        ENDIF
+
+        IF Prioritat_1<Prioritat_3 THEN
+            conta_nivell:=(Palets_1-conta_M1);
+            IF conta_nivell>3 THEN
+                conta_nivell:=3;
+            ENDIF
+            FOR i from 1 TO conta_nivell DO                 !1 bucle pel pis ja que nomes existeix una peça 
+                FOR i from 1 TO 1 DO
+                    a:=a+1;
+                    offsetx:=15;                            !offsets inicials
+                    IF NOT (conta_M1=Palets_1) THEN         !Comprovem si s'han agafat totes les peces, ja que si en un mateix pis només es queda 1 per agafar ens saltem la crida de les funcions i no ens passem
+                        AgafarPeça1;
+                        AnarM1;
+                    ENDIF
+                ENDFOR
+                offsetz:=offsetz+20;
+
+            ENDFOR
+            offsetz:=0;
+            IF NOT (conta_M1=Palets_1) THEN                 !Comprovem si s'han agafat totes les peces
+                Continuar;
+                IF seguir=TRUE THEN
+                    Triapalet;
+                ENDIF
+            ENDIF
+            IF Prioritat_2<Prioritat_3 THEN
+                IF NOT (conta_M2=Palets_2) THEN
+                    Continuar;
+                    IF seguir=TRUE THEN
+                        Triapalet;
+                    ENDIF
+                ENDIF
+            ENDIF
+            conta_nivell:=(4+Palets_3-conta_M3)/4.0;
+            IF conta_nivell>3 THEN
+                conta_nivell:=3;
+            ENDIF
+            FOR i from 1 TO conta_nivell DO                 !2 bucles, un per pisos i l'altre per les repeticions per pisos
+                offsety:=-15;                               !offsets inicials
+                offsetx:=-5;
+                FOR i from 1 TO 4 DO
+                    c:=c+1;
+                    IF NOT (conta_M3=Palets_3) then
+                        AgafarPeça3_Vertical;
+                        AnarM3;
+                        offsety:=offsety+10;
+                    ENDIF
+                ENDFOR
+                offsetz:=offsetz+10;
+
+            ENDFOR
+            offsetz:=0;
+            IF NOT (conta_M3=Palets_3) THEN                     !Comprovem si s'han agafat totes les peces
+                Continuar;
+            IF seguir=TRUE THEN
+                Triapalet;
+            ENDIF
+        ENDIF
+        ENDIF
+        
+        
+        IF Prioritat_3<Prioritat_1 THEN
+            conta_nivell:=(4+Palets_3-conta_M3)/4.0;
+            IF conta_nivell>3 THEN
+                conta_nivell:=3;
+            ENDIF
+            FOR i from 1 TO conta_nivell DO                 !2 bucles, un per pisos i l'altre per les repeticions per pisos
+                offsety:=-15;                               !offsets inicials
+                offsetx:=-5;
+                FOR i from 1 TO 4 DO
+                    c:=c+1;
+                    IF NOT (conta_M3=Palets_3) THEN         !Comprovem si s'han agafat totes les peces, ja que si en un mateix pis només es queda 1 per agafar ens saltem la crida de les funcions i no ens passem
+                        AgafarPeça3_Vertical;
+                        AnarM3;
+                        offsety:=offsety+10;
+                    ENDIF
+                ENDFOR
+                offsetz:=offsetz+10;
+
+                offsetx:=0;
+                offsety:=0;
+            ENDFOR
+            offsetz:=0;
+            IF NOT (conta_M3=Palets_3) THEN                 !Comprovem si s'han agafat totes les peces
+                Continuar;
+                IF seguir=TRUE THEN
+                    Triapalet;
+                ENDIF
+            ENDIF
+            IF Prioritat_2<Prioritat_1 THEN
+                IF NOT (conta_M2=Palets_2) THEN
+                    Continuar;
+                    IF seguir=TRUE THEN
+                        Triapalet;
+                    ENDIF
+                ENDIF
+            ENDIF
+            conta_nivell:=(Palets_1-conta_M1);
+            IF conta_nivell>3 THEN
+                conta_nivell:=3;
+            ENDIF
+            FOR i from 1 TO conta_nivell DO                 !1 bucle pel pis ja que nomes existeix una peça 
+                offsetx:=15;                                !offsets inicials
+                a:=a+1;
+                IF NOT (conta_M1=Palets_1) THEN             !Comprovem si s'han agafat totes les peces, ja que si en un mateix pis només es queda 1 per agafar ens saltem la crida de les funcions i no ens passem
+                    AgafarPeça1;
+                    AnarM1;
+                ENDIF
+
+                offsetz:=offsetz+20;
+
+            ENDFOR
+            offsetz:=0;
+
+        ENDIF
+
+        offsetz:=0;
+
+
+        Continuar;                                          !Hem acabat amb el palet que té el Mosaic 3, per tant esperem a que arribi un nou palet 
+        IF seguir=TRUE THEN
+            Triapalet;
+        ENDIF
+    ENDPROC
+
+
+
+
+
+
+
+    PROC Mosaic4()
+        a:=0;
+        b:=5;
+        c:=0;
+        seguir:=FALSE;
+
+        IF Prioritat_1=1 THEN                               !Comprova si la peça que no esta en el mosaic te prioritat respecte les altres, si es així entra a la funció continuar i esperem a que el palet s'envaigi i entri un altre
+            IF NOT (conta_M1=Palets_1) THEN
+                Continuar;
+                IF seguir=TRUE THEN
+                    Triapalet;
+                ENDIF
+            ENDIF
+        ENDIF
+        IF Prioritat_2<Prioritat_3 THEN
+            conta_nivell:=(Palets_2-conta_M2);
+            IF conta_nivell>3 THEN
+                conta_nivell:=3;
+            ENDIF
+            FOR i from 1 TO conta_nivell DO                 !1 bucle pel pis ja que nomes existeix una peça 
+                offsety:=0;                                 !offsets inicials
+                offsetx:=0;
+                IF NOT (conta_M2=Palets_2) THEN             !Comprovem si s'han agafat totes les peces, ja que si en un mateix pis només es queda 1 per agafar ens saltem la crida de les funcions i no ens passem
+                    Agafarpeça2;
+                    AnarM2;
+                ENDIF
+                b:=b+1;
+                offsetz:=offsetz+20;
+            ENDFOR
+            offsetz:=0;
+
+            IF NOT (conta_M2=Palets_2) THEN                 !Comprovem si s'han agafat totes les peces
+                Continuar;
+                IF seguir=TRUE THEN
+                    Triapalet;
+                ENDIF
+            ENDIF
+            IF Prioritat_1<Prioritat_3 THEN                 !Mirem si la Màquina 1 té prioritat respecte la màquina 3
+                IF NOT (conta_M1=Palets_1) THEN
+                    Continuar;
+                    IF seguir=TRUE THEN
+                        Triapalet;
+                    ENDIF
+                ENDIF
+            ENDIF
+
+
+            conta_nivell:=(4+Palets_3-conta_M3)/4.0;
+            IF conta_nivell>3 THEN
+                conta_nivell:=3;
+            ENDIF
+            FOR i from 1 TO conta_nivell DO                 !3 bucles, un per pisos, un per les peces verticals i l'altre per les peces horitzontals
+                offsety:=-5;                                !offsets inicials peces horitzontals
+                offsetx:=-15;
+                FOR i from 1 TO 2 DO
+                    c:=c+1;
+                    IF NOT (conta_M3=Palets_3) THEN         !Comprovem si s'han agafat totes les peces, ja que si en un mateix pis només es queda 1 per agafar ens saltem la crida de les funcions i no ens passem  
+                        AgafarPeça3_Horitzontal;
+                        AnarM3;
+                        offsety:=offsety+10;
+                        offsetx:=offsetx+30;
+                    ENDIF
+                ENDFOR
+                offsety:=-15;                               !offsets inicials peces verticals
+                offsetx:=5;
+                FOR i from 1 TO 2 DO
+                    c:=c+1;
+                    IF NOT (conta_M3=Palets_3) THEN         !Comprovem si s'han agafat totes les peces, ja que si en un mateix pis només es queda 1 per agafar ens saltem la crida de les funcions i no ens passem
+                        AgafarPeça3_Vertical;
+                        AnarM3;
+                        offsety:=offsety+30;
+                        offsetx:=offsetx-10;
+                    ENDIF
+                ENDFOR
+                offsetz:=offsetz+20;
+            ENDFOR
+
+        ENDIF
+
+
+
+
+        IF Prioritat_3<Prioritat_2 THEN                     !Mirem si la Màquina 3 té prioritat respecte la màquina 2 
+            conta_nivell:=(4+Palets_3-conta_M3)/4.0;        !3 bucles, un per pisos, un per les peces verticals i l'altre per les peces horitzontals
+            IF conta_nivell>3 THEN
+                conta_nivell:=3;
+            ENDIF
+            FOR i from 1 TO conta_nivell DO
+                offsety:=-5;                                !offsets inicials peces horitzontals
+                offsetx:=-15;
+                FOR i from 1 TO 2 DO
+                    c:=c+1;
+                    IF NOT (conta_M3=Palets_3) THEN         !Comprovem si s'han agafat totes les peces, ja que si en un mateix pis només es queda 1 per agafar ens saltem la crida de les funcions i no ens passem
+                        AgafarPeça3_Horitzontal;
+                        AnarM3;
+                        offsety:=offsety+10;
+                        offsetx:=offsetx+30;
+                    ENDIF
+                ENDFOR
+                offsety:=-15;                               !offsets inicials peces verticals
+                offsetx:=5;
+                FOR i from 1 TO 2 DO
+                    c:=c+1;
+                    IF NOT (conta_M3=Palets_3) THEN         !Comprovem si s'han agafat totes les peces, ja que si en un mateix pis només es queda 1 per agafar ens saltem la crida de les funcions i no ens passem
+                        AgafarPeça3_Vertical;
+                        AnarM3;
+                        offsety:=offsety+30;
+                        offsetx:=offsetx-10;
+                    ENDIF
+                ENDFOR
+                offsetz:=offsetz+20;
+
+            ENDFOR
+            offsetz:=0;
+            IF NOT (conta_M3=Palets_3) THEN                 !Comprovem si s'han agafat totes les peces
+                Continuar;
+                IF seguir=TRUE THEN
+                    Triapalet;
+                ENDIF
+            ENDIF
+            IF Prioritat_1<Prioritat_2 THEN                 !Mirem si la Màquina 2 té prioritat respecte la màquina 1 
+                IF NOT (conta_M1=Palets_1) THEN
+                    Continuar;
+                    IF seguir=TRUE THEN
+                        Triapalet;
+                    ENDIF
+                ENDIF
+            ENDIF
+            conta_nivell:=(Palets_2-conta_M2);              !Contem nivells
+            IF conta_nivell>3 THEN
+                conta_nivell:=3;
+            ENDIF
+            FOR i from 1 TO conta_nivell DO                 !1 bucle pel pis ja que nomes existeix una peça 
+                offsety:=0;                                 !offsets inicials per si no els hem resetejat 
+                offsetx:=0;
+                
+                IF NOT (conta_M2=Palets_2) then
+                    Agafarpeça2;
+                    AnarM2;
+                ENDIF
+                b:=b+1;
+                offsetz:=offsetz+20;
+                offsety:=0;
+                offsetx:=0;
+            ENDFOR
+            offsetz:=0;
+        ENDIF
+
+
+        Continuar;                                          !Hem acabat amb el palet que té el Mosaic 4, per tant esperem a que arribi un nou palet 
+        IF seguir=TRUE THEN
+            Triapalet;
+        ENDIF
+    ENDPROC
+
+
+
+    PROC AgafarPeça1()                                      !Moviment per agafar la Materia A del palet 
+        peça:=Offs(Centre_Palet,offsetx,0,-offsetz);
+        MoveL Seguretat,v500,z100,PUNT_INTERMIG\WObj:=wobj0;
+        MoveL RelTool(peça,0,0,0\RZ:=90),v100,fine,PUNT_INTERMIG\WObj:=Palet;
+        IF a=1 THEN
+            setdo pinzasys3,1;
+        ENDIF
+        IF a=2 THEN 
+            setdo pinzasys4,1;
+        ENDIF
+        IF a=3 THEN 
+            setdo pinzasys5,1;
+        ENDIF
+        MoveL Seguretat,v500,z100,PUNT_INTERMIG\WObj:=wobj0;
+    ENDPROC
+
+
+    PROC Agafarpeça2()                                      !Moviment per agafar la Materia C del palet 
+        peça:=Offs(Centre_Palet,offsetx,offsety,-offsetz);
+        MoveJ Seguretat,v500,z100,PUNT_INTERMIG\WObj:=wobj0;
+        MoveL peça,v50,fine,PUNT_INTERMIG\WObj:=Palet;
+        IF b=1 THEN
+            setdo pinzasys,1;
+        ENDIF
+        IF b=2 THEN 
+            setdo pinzasys2,1;
+        ENDIF
+        IF b=3 THEN
+            setdo pinzasys3,1;
+        ENDIF
+        IF b=4 THEN 
+            setdo pinzasys4,1;
+        ENDIF
+        IF b=5 THEN 
+            setdo pinzasys5,1;
+        ENDIF
+        MoveL Seguretat,v500,z100,PUNT_INTERMIG\WObj:=wobj0;
+    ENDPROC
+
+    PROC AgafarPeça3_Vertical()                             !Moviment per agafar la Materia B del palet en vertical (en el mosaic 3 i 4)
+        peça:=Offs(Centre_Palet,offsetx,offsety,-offsetz);
+        MoveL Seguretat,v500,z100,PUNT_INTERMIG\WObj:=wobj0;
+        MoveL peça,v50,fine,PUNT_INTERMIG\WObj:=Palet;
+        IF c=1 THEN
+            setdo pinzasys,1;
+        ENDIF
+        IF c=2 THEN 
+            setdo pinzasys2,1;
+        ENDIF
+        IF c=3 THEN
+            setdo pinzasys3,1;
+        ENDIF
+        IF c=4 THEN 
+            setdo pinzasys4,1;
+        ENDIF
+        MoveL Seguretat,v500,z100,PUNT_INTERMIG\WObj:=wobj0;
+    ENDPROC
+
+    PROC AgafarPeça3_Horitzontal()                          !Moviment per agafar la Materia B del palet en horitzontal (en el mosaic 4)
+        peça:=Offs(Centre_Palet,offsetx,offsety,-offsetz);
+        MoveL Seguretat,v500,z100,PUNT_INTERMIG\WObj:=wobj0;
+        MoveL RelTool(peça,0,0,0\RZ:=90),v100,fine,PUNT_INTERMIG\WObj:=Palet;
+        IF c=1 THEN
+            setdo pinzasys,1;
+        ENDIF
+        IF c=2 THEN 
+            setdo pinzasys2,1;
+        ENDIF
+        MoveL Seguretat,v500,z100,PUNT_INTERMIG\WObj:=wobj0;
+    ENDPROC
+
+
+
+    PROC AnarM1()                                           !Moviment per deixa la peça en la maquina 1
+        MoveL SeguretatM1,v500,z100,PUNT_INTERMIG\WObj:=wobj0;
+        peça:=Offs(CentreM1,0,0,0);
+        MoveL peça,v100,fine,PUNT_INTERMIG\WObj:=M1;
+         IF a=1 THEN
+            setdo pinzasys3,0;
+        ENDIF
+        IF a=2 THEN 
+            setdo pinzasys4,0;
+        ENDIF
+        IF a=3 THEN 
+            setdo pinzasys5,0;
+        ENDIF
+        MoveL SeguretatM1,v500,z100,PUNT_INTERMIG\WObj:=wobj0;
+        MoveL Seguretat,v500,z100,PUNT_INTERMIG\WObj:=wobj0;
+        conta_M1:=1+conta_M1;
+        conta:=conta+1;
+        TPWrite "Peces Maquina 1 = "+NumToStr(conta_M1,reg6);
+    ENDPROC
+
+
+    PROC AnarM2()                                           !Moviment per deixa la peça en la maquina 1
+        MoveJ SeguretatM2,v500,z100,PUNT_INTERMIG\WObj:=wobj0;
+        peça:=Offs(CentreM2,0,0,20);
+        MoveL peça,v100,fine,PUNT_INTERMIG\WObj:=M2;
+        IF b=1 THEN
+            setdo pinzasys,0;
+        ENDIF
+        IF b=2 THEN 
+            setdo pinzasys2,0;
+        ENDIF
+        IF b=3 THEN
+            setdo pinzasys3,0;
+        ENDIF
+        IF b=4 THEN 
+            setdo pinzasys4,0;
+        ENDIF
+        IF b=5 THEN 
+            setdo pinzasys5,0;
+        ENDIF
+        MoveL SeguretatM2,v500,z100,PUNT_INTERMIG\WObj:=wobj0;
+        MoveJ Seguretat,v500,z100,PUNT_INTERMIG\WObj:=wobj0;
+        conta_M2:=1+conta_M2;
+        conta:=conta+1;
+        TPWrite "Peces Maquina 2 = "+NumToStr(conta_M2,reg6);
+    ENDPROC
+
+
+
+    PROC AnarM3()                                           !Moviment per deixa la peça en la maquina 1
+        MoveL SeguretatM3,v500,z100,PUNT_INTERMIG\WObj:=wobj0;
+        peça:=Offs(CentreM3,0,0,0);
+        MoveL peça,v100,fine,PUNT_INTERMIG\WObj:=M3;
+        IF c=1 THEN
+            setdo pinzasys,0;
+        ENDIF
+        IF c=2 THEN 
+            setdo pinzasys2,0;
+        ENDIF
+        IF c=3 THEN
+            setdo pinzasys3,0;
+        ENDIF
+        IF c=4 THEN 
+            setdo pinzasys4,0;
+        ENDIF
+        MoveL SeguretatM3,v500,z100,PUNT_INTERMIG\WObj:=wobj0;
+        MoveL Seguretat,v500,z100,PUNT_INTERMIG\WObj:=wobj0;
+        conta_M3:=1+conta_M3;
+        conta:=conta+1;
+        TPWrite "Peces Maquina 3 = "+NumToStr(conta_M3,reg6);
+    ENDPROC
+
+
+
+    TRAP detectar                                       !funcio trap per connectada al sensor que detecta el palet i començar a despaletitzar
+        start:=TRUE;
+    ENDTRAP
+
+    TRAP detectar2                                      !Funcio trap connectada a la sortida del Motor del Transfer 
+        seguir:=TRUE;
+    ENDTRAP
+
+PROC Continuar()                                        !Aquesta funció comprova si s'han agafat totes les peces demanades, si no es aixií, es entra en bucle i esperar a que el motor de transfer s'encengui i esperar a que el sensor del palet detecti que el palet ha arribat
+        setdo treurepal, 1;
+        SetDO entrada_palet,0;
+        SetDO entrada_palet2,0;
+        SetDO entrada_palet3,0;
+        SetDO entrada_palet4,0;
+        IF conta=total THEN
+            seguir:=FALSE;
+            setdo borrar, 1;
+            setdo borrar, 0;
+        ELSE
+            setdo borrar, 1;
+            setdo borrar, 0;
+            seguir:=FALSE;
+            WHILE seguir=FALSE DO                       !bucle que espera al transfer a encendres
+            ENDWHILE
+            setdo treurepal,0;
+            
+            rand:=Random(nSeed,nSeed_age);
+
+            IF rand<=0.25 THEN
+                SetDO entrada_palet,1;
+            ENDIF
+            IF rand>0.25 and rand<=0.50 THEN
+                SetDO entrada_palet2,1;
+            ENDIF
+            IF rand>0.50 and rand<=0.75 THEN
+                SetDO entrada_palet3,1;
+            ENDIF
+            IF rand>0.75 and rand<=1 THEN
+                SetDO entrada_palet4,1;
+            ENDIF
+            start:=FALSE;
+            WHILE start=FALSE DO                        !bucle que espera a que arribi el palet a la posicio de despaletitzar
+            ENDWHILE
+            
+        ENDIF
+        
+    ENDPROC
+    
+    LOCAL FUNC num Random(VAR num nSeed,VAR num nSeed_age)
+        CONST num nModulus:=655;
+        CONST num nMultiplier:=251;
+        CONST num nIncrement:=13849;
+        IF nSeed_age>140 THEN
+
+            nSeed:=GetTime(\Sec)*GetTime(\Min);
+            nSeed_age:=0;
+        ENDIF
+        nSeed_age:=nSeed_age+1;
+        nSeed:=((nMultiplier*Abs(nSeed))+nIncrement) MOD nModulus;
+        RETURN (nSeed/nModulus);
+    ENDFUNC
+
+ENDMODULE
